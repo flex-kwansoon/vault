@@ -124,6 +124,11 @@ func (c *SSHHelperConfig) NewClient() (*Client, error) {
 		return nil, err
 	}
 
+	// Configure namespace
+	if c.Namespace != "" {
+		client.SetNamespace(c.Namespace)
+	}
+
 	return client, nil
 }
 
