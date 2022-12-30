@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/armon/go-metrics v0.3.0
 	github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310
-	github.com/aws/aws-sdk-go v1.25.37
+	github.com/aws/aws-sdk-go v1.33.0
 	github.com/fatih/structs v1.1.0
 	github.com/go-ldap/ldap/v3 v3.1.3
 	github.com/go-test/deep v1.0.2-0.20181118220953-042da051cf31
@@ -26,7 +26,7 @@ require (
 	github.com/mitchellh/go-testing-interface v1.0.0
 	github.com/mitchellh/mapstructure v1.2.2
 	github.com/pierrec/lz4 v2.0.5+incompatible
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/ryanuber/go-glob v1.0.0
 	golang.org/x/crypto v0.0.0-20190418165655-df01cb2cc480
 	golang.org/x/sys v0.0.0-20191008105621-543471e840be
