@@ -10,15 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/hashicorp/consul-template/child"
 	"github.com/hashicorp/consul-template/config"
 	dep "github.com/hashicorp/consul-template/dependency"
 	"github.com/hashicorp/consul-template/renderer"
 	"github.com/hashicorp/consul-template/template"
 	"github.com/hashicorp/consul-template/watch"
+
 	multierror "github.com/hashicorp/go-multierror"
-	shellwords "github.com/mattn/go-shellwords"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -102,6 +103,7 @@ type Runner struct {
 	// template and command runtime with. These environment variables will be
 	// available in both the command's environment as well as the template's
 	// environment.
+	// NOTE this is only used when CT is being used as a library.
 	Env map[string]string
 
 	// stopLock is the lock around checking if the runner can be stopped
@@ -224,7 +226,7 @@ func (r *Runner) Start() {
 		// Warn the user if they are watching too many dependencies.
 		if r.watcher.Size() > saneViewLimit {
 			log.Printf("[WARN] (runner) watching %d dependencies - watching this "+
-				"many dependencies could DDoS your consul cluster", r.watcher.Size())
+				"many dependencies could DDoS your servers", r.watcher.Size())
 		} else {
 			log.Printf("[DEBUG] (runner) watching %d dependencies", r.watcher.Size())
 		}
@@ -851,6 +853,8 @@ func (r *Runner) init() error {
 	}
 	log.Printf("[DEBUG] (runner) final config: %s", result)
 
+	dep.SetVaultDefaultLeaseDuration(config.TimeDurationVal(r.config.Vault.DefaultLeaseDuration))
+
 	// Create the clientset
 	clients, err := newClientSet(r.config)
 	if err != nil {
@@ -883,13 +887,13 @@ func (r *Runner) init() error {
 		}
 
 		tmpl, err := template.NewTemplate(&template.NewTemplateInput{
-			Source:            config.StringVal(ctmpl.Source),
-			Contents:          config.StringVal(ctmpl.Contents),
-			ErrMissingKey:     config.BoolVal(ctmpl.ErrMissingKey),
-			LeftDelim:         leftDelim,
-			RightDelim:        rightDelim,
-			FunctionBlacklist: ctmpl.FunctionBlacklist,
-			SandboxPath:       config.StringVal(ctmpl.SandboxPath),
+			Source:           config.StringVal(ctmpl.Source),
+			Contents:         config.StringVal(ctmpl.Contents),
+			ErrMissingKey:    config.BoolVal(ctmpl.ErrMissingKey),
+			LeftDelim:        leftDelim,
+			RightDelim:       rightDelim,
+			FunctionDenylist: ctmpl.FunctionDenylist,
+			SandboxPath:      config.StringVal(ctmpl.SandboxPath),
 		})
 		if err != nil {
 			return err
@@ -1148,14 +1152,10 @@ type spawnChildInput struct {
 // spawnChild spawns a child process with the given inputs and returns the
 // resulting child.
 func spawnChild(i *spawnChildInput) (*child.Child, error) {
-	p := shellwords.NewParser()
-	p.ParseEnv = true
-	p.ParseBacktick = true
-	args, err := p.Parse(i.Command)
+	args, err := prepCommand(i.Command)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed parsing command")
 	}
-
 	child, err := child.New(&child.NewInput{
 		Stdin:        i.Stdin,
 		Stdout:       i.Stdout,
@@ -1284,6 +1284,7 @@ func newClientSet(c *config.Config) (*dep.ClientSet, error) {
 		SSLCACert:                    config.StringVal(c.Vault.SSL.CaCert),
 		SSLCAPath:                    config.StringVal(c.Vault.SSL.CaPath),
 		ServerName:                   config.StringVal(c.Vault.SSL.ServerName),
+		TransportCustomDialer:        c.Vault.Transport.CustomDialer,
 		TransportDialKeepAlive:       config.TimeDurationVal(c.Vault.Transport.DialKeepAlive),
 		TransportDialTimeout:         config.TimeDurationVal(c.Vault.Transport.DialTimeout),
 		TransportDisableKeepAlives:   config.BoolVal(c.Vault.Transport.DisableKeepAlives),
