@@ -60,11 +60,12 @@ type RenderResult struct {
 // whether it would have rendered and actually did render.
 func Render(i *RenderInput) (*RenderResult, error) {
 	existing, err := ioutil.ReadFile(i.Path)
-	if err != nil && !os.IsNotExist(err) {
+	fileExists := !os.IsNotExist(err)
+	if err != nil && fileExists {
 		return nil, errors.Wrap(err, "failed reading file")
 	}
 
-	if bytes.Equal(existing, i.Contents) {
+	if bytes.Equal(existing, i.Contents) && fileExists {
 		return &RenderResult{
 			DidRender:   false,
 			WouldRender: true,
@@ -102,6 +103,10 @@ func Render(i *RenderInput) (*RenderResult, error) {
 //
 // If no errors occur, the Tempfile is "renamed" (moved) to the destination
 // path.
+//
+// Please note that this is only atomic on POSIX systems. It is not atomic on
+// Windows and it is impossible to rename atomically on Windows. For more on
+// this see: https://github.com/golang/go/issues/22397#issuecomment-498856679
 func AtomicWrite(path string, createDestDirs bool, contents []byte, perms os.FileMode, backup bool) error {
 	if path == "" {
 		return ErrMissingDest
@@ -139,23 +144,24 @@ func AtomicWrite(path string, createDestDirs bool, contents []byte, perms os.Fil
 	// If the user did not explicitly set permissions, attempt to lookup the
 	// current permissions on the file. If the file does not exist, fall back to
 	// the default. Otherwise, inherit the current permissions.
-	if perms == 0 {
-		currentInfo, err := os.Stat(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				perms = DefaultFilePerms
-			} else {
-				return err
-			}
-		} else {
-			perms = currentInfo.Mode()
-
-			// The file exists, so try to preserve the ownership as well.
-			if err := preserveFilePermissions(f.Name(), currentInfo); err != nil {
-				log.Printf("[WARN] (runner) could not preserve file permissions for %q: %v",
-					f.Name(), err)
-			}
+	var existingPerms os.FileMode = DefaultFilePerms
+	currentInfo, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
 		}
+	} else {
+		existingPerms = currentInfo.Mode()
+
+		// The file exists, so try to preserve the ownership as well.
+		if err := preserveFilePermissions(f.Name(), currentInfo); err != nil {
+			log.Printf("[WARN] (runner) could not preserve file permissions for %q: %v",
+				f.Name(), err)
+		}
+	}
+
+	if perms == 0 {
+		perms = existingPerms
 	}
 
 	if err := os.Chmod(f.Name(), perms); err != nil {
