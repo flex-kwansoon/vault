@@ -29,7 +29,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/ryanuber/go-glob v1.0.0
 	golang.org/x/crypto v0.0.0-20190418165655-df01cb2cc480
-	golang.org/x/sys v0.0.0-20191008105621-543471e840be
+	golang.org/x/sys v0.1.0
 	google.golang.org/grpc v1.27.0
 	google.golang.org/protobuf v1.24.0
 )
